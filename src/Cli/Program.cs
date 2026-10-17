@@ -1,4 +1,5 @@
 ﻿using Core;
+using Core.Domain;
 using Core.Dto;
 using Core.Import;
 
@@ -10,40 +11,100 @@ if (args.Contains("--info") || args.Contains("--env"))
     return 0;
 }
 
-string path = args.Length > 0 && !args[0].StartsWith('-')
-    ? args[0]
-    : Path.Combine("data", "sample.csv");
-
-if (!File.Exists(path))
+// Якщо передано прапорець --domain або --lab4, або якщо CLI запущено без аргументів — виконуємо демонстрацію ЛР4
+if (args.Contains("--domain") || args.Contains("--lab4") || args.Length == 0)
 {
-    Console.WriteLine($"Помилка: файл не знайдено за шляхом: {Path.GetFullPath(path)}");
-    return 1;
+    RunDomainDemo();
+    return 0;
 }
 
-string fileName = Path.GetFileName(path).ToLowerInvariant();
-string extension = Path.GetExtension(path).ToLowerInvariant();
+// Пошук аргументу шляху до файлу імпорту: пропускаємо розділювач "--" та будь-які прапорці "-"
+string? inputPath = args.FirstOrDefault(a => a != "--" && !a.StartsWith('-'));
 
-// Вибір стратегії імпорту через switch expression
-switch (extension)
+if (!string.IsNullOrEmpty(inputPath))
 {
-    case ".csv" when fileName.Contains("mixed"):
-        ProcessMixedCsv(path);
-        break;
-
-    case ".csv":
-        ProcessProductImport(ProductCsvImporter.Load(path), "CSV");
-        break;
-
-    case ".json":
-        ProcessProductImport(ProductJsonImporter.Load(path), "JSON");
-        break;
-
-    default:
-        Console.WriteLine($"Помилка: непідтримуваний формат файлу '{extension}'. Очікується .csv або .json");
+    if (!File.Exists(inputPath))
+    {
+        Console.WriteLine($"Помилка: файл не знайдено за шляхом: {Path.GetFullPath(inputPath)}");
         return 1;
+    }
+
+    string fileName = Path.GetFileName(inputPath).ToLowerInvariant();
+    string extension = Path.GetExtension(inputPath).ToLowerInvariant();
+
+    switch (extension)
+    {
+        case ".csv" when fileName.Contains("mixed"):
+            ProcessMixedCsv(inputPath);
+            break;
+
+        case ".csv":
+            ProcessProductImport(ProductCsvImporter.Load(inputPath), "CSV");
+            break;
+
+        case ".json":
+            ProcessProductImport(ProductJsonImporter.Load(inputPath), "JSON");
+            break;
+
+        default:
+            Console.WriteLine($"Помилка: непідтримуваний формат файлу '{extension}'. Очікується .csv або .json");
+            return 1;
+    }
 }
 
 return 0;
+
+static void RunDomainDemo()
+{
+    Console.WriteLine("=== ЛАБОРАТОРНА РОБОТА 4: ДЕМОНСТРАЦІЯ ДОМЕННОЇ МОДЕЛІ ===");
+    Console.WriteLine();
+
+    Console.WriteLine("--- Сценарій 1: Успішна робота з доменною сутністю ---");
+    Product product = Product.Create("P-001", "sku-101", "Молоко пастеризоване 2.5%", "пак", 100);
+    Console.WriteLine($"Створено об'єкт   : {product}");
+
+    product.RegisterArrival(50);
+    Console.WriteLine($"Після приходу (+50): {product}");
+
+    product.Issue(110);
+    Console.WriteLine($"Після видачі (-110): {product}"); // Потім буде статус LowStock (<50)
+
+    // Демонстрація мапінгу ToDto та FromDto
+    ProductDto dto = product.ToDto();
+    Product restored = Product.FromDto(dto);
+    Console.WriteLine($"Відновлено з DTO  : {restored}");
+    Console.WriteLine();
+
+    Console.WriteLine("--- Сценарій 2: Порушення інваріантів домену ---");
+    TryDo("Видача більша за залишок", () => product.Issue(1000));
+    TryDo("Прихід з від'ємною кількістю", () => product.RegisterArrival(-10));
+    TryDo("Створення з порожнім SKU", () => Product.Create("P-002", "", "Хліб пшеничний", "шт", 10));
+    TryDo("Створення з від'ємним залишком", () => Product.Create("P-003", "SKU-103", "Сир Гауда", "кг", -5));
+
+    Console.WriteLine();
+    Console.WriteLine($"Фінальний стан об'єкта не змінився після відмов: {product}");
+    Console.WriteLine();
+
+    Console.WriteLine("--- Сценарій 3 (Додаткове завдання): Конвертація DTO 3-го тижня у Домен ---");
+    ImportResult<ProductDto> csvResult = ProductCsvImporter.Load(Path.Combine("data", "sample.csv"));
+    var (domainProducts, domainErrors) = Product.CreateFromImport(csvResult);
+
+    Console.WriteLine($"Успішно перетворено в доменні сутності: {domainProducts.Count} записів");
+    Console.WriteLine($"Усього помилок (включаючи інваріанти): {domainErrors.Count}");
+}
+
+static void TryDo(string title, Action action)
+{
+    try
+    {
+        action();
+        Console.WriteLine($"  [ПОМИЛКА МОДЕЛІ] {title}: виняток НЕ спрацював, інваріант відсутній!");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"  [УСПІХ ІНВАРІАНТА] {title}: {ex.GetType().Name} — {ex.Message}");
+    }
+}
 
 static void ProcessProductImport(ImportResult<ProductDto> result, string format)
 {
@@ -69,7 +130,6 @@ static void ProcessProductImport(ImportResult<ProductDto> result, string format)
         }
     }
 
-    // Додаткове завдання 3: Статистичний рядок
     int accepted = result.Items.Count;
     int rejected = result.Errors.Count;
     int total = accepted + rejected;
