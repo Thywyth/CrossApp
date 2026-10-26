@@ -2,7 +2,7 @@ using Core.Dto;
 
 namespace Core.Domain;
 
-// Додаткове завдання 3: Явний стан-перелічування для сутності
+// Похідний статус запасу: не зберігається, а обчислюється із залишку
 public enum StockStatus
 {
     OutOfStock,
@@ -20,6 +20,9 @@ public sealed class Product
     public string Unit { get; }
 
     public int Quantity => _quantity;
+
+    // Стан життєвого циклу: читається звідусіль, змінюється лише методами Suspend / Resume / Discontinue
+    public ProductState State { get; private set; } = ProductState.Active;
 
     // Властивість-вираз зі switch expression для визначення статусу за залишком
     public StockStatus Status => _quantity switch
@@ -89,6 +92,7 @@ public sealed class Product
         if (amount <= 0)
             throw new ArgumentOutOfRangeException(nameof(amount), amount, "Кількість приходу має бути більшою за нуль");
 
+        EnsureActive("прихід");
         _quantity += amount;
     }
 
@@ -96,6 +100,8 @@ public sealed class Product
     {
         if (amount <= 0)
             throw new ArgumentOutOfRangeException(nameof(amount), amount, "Кількість видачі має бути більшою за нуль");
+
+        EnsureActive("видача");
 
         if (amount > _quantity)
             throw new InvalidOperationException($"Не можна видати {amount} {Unit}: поточний залишок товару [{Sku}] становить {_quantity} {Unit}");
@@ -107,6 +113,41 @@ public sealed class Product
 
     public static Product FromDto(ProductDto dto) =>
         Create(dto.Id, dto.Sku, dto.Name, dto.Unit, dto.Quantity);
+
+    // Додаткове завдання 3: зміна стану життєвого циклу з перевіркою допустимих переходів
+    public void Suspend() => ChangeState(ProductState.Suspended);
+
+    public void Resume() => ChangeState(ProductState.Active);
+
+    public void Discontinue()
+    {
+        if (_quantity > 0)
+            throw new InvalidOperationException($"Не можна зняти з обліку товар [{Sku}]: на складі ще {_quantity} {Unit}");
+
+        ChangeState(ProductState.Discontinued);
+    }
+
+    private void ChangeState(ProductState target)
+    {
+        bool allowed = (State, target) switch
+        {
+            (ProductState.Active, ProductState.Suspended) => true,
+            (ProductState.Suspended, ProductState.Active) => true,
+            (ProductState.Active or ProductState.Suspended, ProductState.Discontinued) => true,
+            _ => false
+        };
+
+        if (!allowed)
+            throw new InvalidOperationException($"Недопустимий перехід стану товару [{Sku}]: {State} -> {target}");
+
+        State = target;
+    }
+
+    private void EnsureActive(string operation)
+    {
+        if (State != ProductState.Active)
+            throw new InvalidOperationException($"Операція «{operation}» неможлива: товар [{Sku}] у стані {State}");
+    }
 
     public override string ToString() => $"{Id} [{Sku}] {Name} — {Quantity} {Unit} (Статус: {Status})";
 }

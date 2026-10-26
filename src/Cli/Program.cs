@@ -18,6 +18,13 @@ if (args.Contains("--convert"))
     return RunConversionDemo(convertPath);
 }
 
+// Прапорець --extra: демонстрація додаткових завдань 2 і 3 ЛР4
+if (args.Contains("--extra"))
+{
+    RunExtraTasksDemo();
+    return 0;
+}
+
 // Якщо передано прапорець --domain або --lab4, або якщо CLI запущено без аргументів — виконуємо демонстрацію ЛР4
 if (args.Contains("--domain") || args.Contains("--lab4") || args.Length == 0)
 {
@@ -98,6 +105,58 @@ static void RunDomainDemo()
 
     Console.WriteLine($"Успішно перетворено в доменні сутності: {domainProducts.Count} записів");
     Console.WriteLine($"Усього помилок (включаючи інваріанти): {domainErrors.Count}");
+}
+
+static void RunExtraTasksDemo()
+{
+    Console.WriteLine("=== ЛАБОРАТОРНА РОБОТА 4: ДОДАТКОВІ ЗАВДАННЯ 2 І 3 ===");
+    Console.WriteLine();
+
+    Console.WriteLine("--- Додаткове завдання 2: інваріант двох сутностей (Warehouse + Product) ---");
+    var receiving = new StockReceivingService();
+    Warehouse warehouse = Warehouse.Create("W-01", "Холодильний термінал", "Корпус Б", 500);
+    Product milk = Product.Create("P-001", "SKU-101", "Молоко пастеризоване 2.5%", "пак", 100);
+    Product cheese = Product.Create("P-003", "SKU-103", "Сир Гауда", "кг", 45);
+    Product bread = Product.Create("P-002", "SKU-102", "Хліб пшеничний", "шт", 10);
+
+    receiving.Place(warehouse, milk);
+    receiving.Place(warehouse, cheese);
+    Console.WriteLine($"Розміщено 2 товари      : {warehouse}");
+
+    receiving.Receive(warehouse, milk, 200);
+    Console.WriteLine($"Прихід молока (+200)    : {warehouse}");
+
+    TryDo("Прихід понад місткість складу", () => receiving.Receive(warehouse, cheese, 300));
+    TryDo("Повторне розміщення того ж SKU", () => receiving.Place(warehouse, milk));
+    TryDo("Прихід товару, якого немає на складі", () => receiving.Receive(warehouse, bread, 10));
+
+    Console.WriteLine($"Стан складу після відмов: {warehouse}");
+    foreach (Product product in warehouse.Products)
+    {
+        Console.WriteLine($"  {product}");
+    }
+
+    Console.WriteLine();
+
+    Console.WriteLine("--- Додаткове завдання 3: стан товару і допустимі переходи (switch expression) ---");
+    Product yogurt = Product.Create("P-020", "SKU-120", "Йогурт полуничний 2.5%", "шт", 30);
+    Console.WriteLine($"Створено                : {yogurt.Sku}, стан {yogurt.State}, залишок {yogurt.Quantity}");
+
+    yogurt.Suspend();
+    Console.WriteLine($"Suspend()               : стан {yogurt.State}");
+    TryDo("Видача призупиненого товару", () => yogurt.Issue(5));
+    TryDo("Повторне призупинення", () => yogurt.Suspend());
+
+    yogurt.Resume();
+    Console.WriteLine($"Resume()                : стан {yogurt.State}");
+    TryDo("Зняття з обліку товару із залишком", () => yogurt.Discontinue());
+
+    yogurt.Issue(30);
+    yogurt.Discontinue();
+    Console.WriteLine($"Issue(30) + Discontinue(): стан {yogurt.State}, залишок {yogurt.Quantity}");
+
+    TryDo("Повернення знятого з обліку товару", () => yogurt.Resume());
+    TryDo("Прихід на знятий з обліку товар", () => yogurt.RegisterArrival(10));
 }
 
 static int RunConversionDemo(string path)

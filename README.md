@@ -36,7 +36,10 @@ CrossApp/
     │   ├── EnvironmentInfo.cs # Збір системних параметрів середовища
     │   │
     │   ├── Domain/          # Доменна модель із поведінкою та інкапсуляцією (ЛР4)
-    │   │   └── Product.cs   # Багата доменна сутність (Rich Domain Model)
+    │   │   ├── Product.cs   # Багата доменна сутність (Rich Domain Model)
+    │   │   ├── ProductState.cs # Стан життєвого циклу товару (дод. завдання 3)
+    │   │   ├── Warehouse.cs # Склад із захищеною колекцією товарів
+    │   │   └── StockReceivingService.cs # Правило місткості складу (дод. завдання 2)
     │   │
     │   ├── Dto/             # Незмінні моделі передачі даних (record-типи)
     │   │   ├── ProductDto.cs
@@ -94,6 +97,9 @@ dotnet run --project src/Cli -- --convert
 # Конвертація файлу, де частину рядків відхиляє імпортер, а частину — інваріанти домену
 dotnet run --project src/Cli -- --convert data/domain_test.csv
 
+# Додаткові завдання 2 і 3: місткість складу та переходи стану товару
+dotnet run --project src/Cli -- --extra
+
 # Імпорт CSV-файлу з передачею аргументу шляху
 dotnet run --project src/Cli -- data/sample.csv
 
@@ -133,6 +139,17 @@ dotnet run --project src/Cli -- --info
    * *Тип винятку:* `ArgumentOutOfRangeException`.
 4. **Захист від перевитрати (списання понад залишок):**
    * Кількість видачі `amount` не може перевищувати поточний залишок `_quantity`.
+   * *Тип винятку:* `InvalidOperationException`.
+5. **Операції лише для активного товару:**
+   * Прихід і видача неможливі, якщо товар у стані `Suspended` або `Discontinued`.
+   * *Тип винятку:* `InvalidOperationException`.
+6. **Допустимі переходи стану (`ProductState`):**
+   * `Active` → `Suspended` / `Discontinued`; `Suspended` → `Active` / `Discontinued`; `Discontinued` — кінцевий стан. Зняти з обліку можна лише товар із нульовим залишком.
+   * Перевірка — switch expression по парі `(State, target)` у `Product.ChangeState`.
+   * *Тип винятку:* `InvalidOperationException`.
+7. **Інваріант двох сутностей — місткість складу (`Warehouse` + `Product`):**
+   * Сумарний залишок товарів на складі не перевищує `Capacity`; один SKU розміщується на складі лише один раз.
+   * Перевіряється в `StockReceivingService` (`Place`, `Receive`), бо ні товар, ні склад окремо не мають усього потрібного стану. На 5-му тижні сервіс отримає сховища.
    * *Тип винятку:* `InvalidOperationException`.
 
 ---
