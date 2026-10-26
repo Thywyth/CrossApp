@@ -11,6 +11,13 @@ if (args.Contains("--info") || args.Contains("--env"))
     return 0;
 }
 
+// Прапорець --convert: детальний вивід конвертації ImportResult у доменні сутності (за замовчуванням data/sample.csv)
+if (args.Contains("--convert"))
+{
+    string convertPath = args.FirstOrDefault(a => a != "--" && !a.StartsWith('-')) ?? Path.Combine("data", "sample.csv");
+    return RunConversionDemo(convertPath);
+}
+
 // Якщо передано прапорець --domain або --lab4, або якщо CLI запущено без аргументів — виконуємо демонстрацію ЛР4
 if (args.Contains("--domain") || args.Contains("--lab4") || args.Length == 0)
 {
@@ -91,6 +98,54 @@ static void RunDomainDemo()
 
     Console.WriteLine($"Успішно перетворено в доменні сутності: {domainProducts.Count} записів");
     Console.WriteLine($"Усього помилок (включаючи інваріанти): {domainErrors.Count}");
+}
+
+static int RunConversionDemo(string path)
+{
+    if (!File.Exists(path))
+    {
+        Console.WriteLine($"Помилка: файл не знайдено за шляхом: {Path.GetFullPath(path)}");
+        return 1;
+    }
+
+    ImportResult<ProductDto> importResult = Path.GetExtension(path).ToLowerInvariant() == ".json"
+        ? ProductJsonImporter.Load(path)
+        : ProductCsvImporter.Load(path);
+
+    var (products, errors) = Product.CreateFromImport(importResult);
+
+    // CreateFromImport спочатку копіює помилки імпортера, а потім додає помилки інваріантів
+    int importErrorCount = importResult.Errors.Count;
+    IEnumerable<string> importErrors = errors.Take(importErrorCount);
+    IEnumerable<string> invariantErrors = errors.Skip(importErrorCount);
+
+    Console.WriteLine($"=== Конвертація ImportResult у доменні сутності: {Path.GetFileName(path)} ===");
+    Console.WriteLine($"Записів після імпорту (DTO): {importResult.Items.Count}");
+    Console.WriteLine();
+
+    Console.WriteLine($"--- Доменні сутності Product: {products.Count} ---");
+    foreach (Product product in products)
+    {
+        Console.WriteLine($"  {product}");
+    }
+
+    Console.WriteLine();
+    Console.WriteLine($"--- Відхилено імпортером (розбір рядка, ЛР3): {importErrorCount} ---");
+    foreach (string err in importErrors)
+    {
+        Console.WriteLine($"  ! {err}");
+    }
+
+    Console.WriteLine();
+    Console.WriteLine($"--- Відхилено доменом (інваріанти Product, ЛР4): {errors.Count - importErrorCount} ---");
+    foreach (string err in invariantErrors)
+    {
+        Console.WriteLine($"  ! {err}");
+    }
+
+    Console.WriteLine(new string('-', 68));
+    Console.WriteLine($"[СТАТИСТИКА КОНВЕРТАЦІЇ] Сутностей: {products.Count} | Помилок імпорту: {importErrorCount} | Порушень інваріантів: {errors.Count - importErrorCount}");
+    return 0;
 }
 
 static void TryDo(string title, Action action)

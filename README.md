@@ -88,6 +88,12 @@ dotnet run --project src/Cli
 # Явний запуск демонстрації доменної моделі
 dotnet run --project src/Cli -- --domain
 
+# Детальна конвертація ImportResult у доменні сутності Product (за замовчуванням data/sample.csv)
+dotnet run --project src/Cli -- --convert
+
+# Конвертація файлу, де частину рядків відхиляє імпортер, а частину — інваріанти домену
+dotnet run --project src/Cli -- --convert data/domain_test.csv
+
 # Імпорт CSV-файлу з передачею аргументу шляху
 dotnet run --project src/Cli -- data/sample.csv
 

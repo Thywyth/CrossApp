@@ -77,7 +77,7 @@ public sealed class Product
             }
             catch (Exception ex)
             {
-                errors.Add($"Помилка інваріанту для DTO [{dto.Id}]: {ex.Message}");
+                errors.Add($"Помилка інваріанту для DTO [Id='{dto.Id}', SKU='{dto.Sku}']: {ex.Message}");
             }
         }
 
